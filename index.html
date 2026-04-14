@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dino Tug of War</title>
+
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PapaParse for Google Sheets (Optional) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Fredoka One', cursive;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #f0fdf4;
+        }
+
+        .font-nunito {
+            font-family: 'Nunito', sans-serif;
+        }
+
+        /* Custom Animations */
+        @keyframes zoomInSmooth {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-zoom-in {
+            animation: zoomInSmooth 1.5s ease-out forwards;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+        }
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        .text-stroke {
+            -webkit-text-stroke: 2px black;
+            text-shadow: 3px 3px 0 #000;
+        }
+        .text-stroke-sm {
+            -webkit-text-stroke: 1px black;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        /* Arena styling */
+        .arena-bg {
+            background-image: url('https://i.imgur.com/hu8aBFB.png');
+            background-size: cover;
+            background-position: center bottom;
+        }
+
+        /* Button active styles */
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        .btn-green { background: linear-gradient(145deg, #4ade80, #16a34a); box-shadow: 0 6px 0 #14532d; }
+        .btn-green:active { box-shadow: 0 0px 0 #14532d; transform: translateY(6px); }
+
+        .btn-red { background: linear-gradient(145deg, #f87171, #dc2626); box-shadow: 0 6px 0 #7f1d1d; }
+        .btn-red:active { box-shadow: 0 0px 0 #7f1d1d; transform: translateY(6px); }
+
+        .btn-blue { background: linear-gradient(145deg, #60a5fa, #2563eb); box-shadow: 0 6px 0 #1e3a8a; }
+        .btn-blue:active { box-shadow: 0 0px 0 #1e3a8a; transform: translateY(6px); }
+        
+        .btn-yellow { background: linear-gradient(145deg, #fde047, #eab308); box-shadow: 0 6px 0 #a16207; color: black; }
+        .btn-yellow:active { box-shadow: 0 0px 0 #a16207; transform: translateY(6px); }
+
+        .rope-texture {
+            background-color: #8b5a2b;
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.2) 10px, rgba(0,0,0,0.2) 20px);
+            border-top: 3px solid #3e2723;
+            border-bottom: 3px solid #3e2723;
+        }
+
+        /* Prevent zooming on double tap on mobile */
+        * { touch-action: manipulation; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- ASSETS & CONFIG ---
+        const ASSETS = {
+            bgm: 'https://github.com/ilindekguru/Lagulagu/raw/refs/heads/main/Kids%20Toddler%20Background%20Music%20Song%20For%20Videos%20-%20Background%20Music%20for%20Videos.mp3',
+            fanfare: 'https://github.com/ilindekguru/Lagulagu/raw/refs/heads/main/brass-fanfare-with-timpani-and-winchimes-reverberated-146260.mp3',
+            bgArena: 'https://i.imgur.com/hu8aBFB.png',
+            dinoGreen: 'https://i.imgur.com/wNVwFKJ.png',
+            dinoRed: 'https://i.imgur.com/UilWyZd.png'
+        };
+
+        const GOOGLE_SHEET_URL = ""; // Optional: Kosongkan jika pakai bank soal lokal
+
+        // --- DATABASE SOAL (LOKAL) ---
+        const localQuestionBank = {
+            personifikasi: [
+                { q: "Manakah kalimat majas personifikasi?", a: ["Ombak menari-nari di pantai.", "Saya makan nasi goreng.", "Dia sangat kaya raya.", "Suaranya merdu sekali."] },
+                { q: "Pilih kalimat yang mengandung personifikasi:", a: ["Angin berbisik lembut ke telingaku.", "Ayah membaca koran pagi.", "Kucing itu berlari kencang.", "Rumah itu besar sekali."] },
+                { q: "Mana contoh benda mati seolah hidup?", a: ["Matahari tersenyum ramah pagi ini.", "Adik menangis tersedu-sedu.", "Burung berkicau di pohon.", "Buku itu tebal sekali."] },
+                { q: "Kalimat personifikasi ada pada:", a: ["Jam dinding terus berdetak mengingatkanku.", "Meja ini terbuat dari kayu.", "Budi bermain bola di lapangan.", "Ibu memasak di dapur."] },
+                { q: "Pilih kalimat majas personifikasi:", a: ["Pensil ini menari di atas kertas.", "Saya menulis dengan pensil.", "Pensil ini berwarna merah.", "Pensil ini patah."] },
+                { q: "Manakah contoh personifikasi?", a: ["Api melahap habis rumah itu.", "Api itu sangat panas.", "Kakak menyalakan api unggun.", "Air mematikan api."] },
+                { q: "Pilih majas personifikasi:", a: ["Awan menangis turunkan hujan.", "Langit terlihat mendung.", "Hujan turun sangat deras.", "Petir menyambar pohon."] },
+                { q: "Mana yang merupakan personifikasi?", a: ["Mobil itu terbatuk-batuk sebelum mogok.", "Mobil itu berwarna biru.", "Mobil itu berjalan lambat.", "Mobil itu harganya mahal."] },
+                { q: "Kalimat personifikasi di bawah ini:", a: ["Padi menunduk menyapa petani.", "Padi menguning di sawah.", "Petani memanen padi.", "Padi dijemur di halaman."] },
+                { q: "Pilih contoh personifikasi:", a: ["Bintang mengintip di balik awan.", "Bintang malam ini sangat terang.", "Ada banyak bintang di langit.", "Saya suka melihat bintang."] },
+                { q: "Manakah majas personifikasi?", a: ["Bulan menemani kesendirianku malam ini.", "Bulan bersinar terang malam ini.", "Bulan purnama terlihat bulat.", "Astronot pergi ke bulan."] },
+                { q: "Kalimat personifikasi:", a: ["Badai mengamuk di lautan.", "Angin kencang bertiup kencang.", "Ombak di laut sangat tinggi.", "Nelayan tidak pergi melaut."] },
+                { q: "Pilih majas personifikasi:", a: ["Pohon kelapa melambai-lambai di pantai.", "Pohon kelapa tumbuh tinggi.", "Buah kelapa jatuh dari pohon.", "Daun kelapa berwarna hijau."] },
+                { q: "Contoh majas personifikasi:", a: ["Alam bernyanyi riang menyambut pagi.", "Katak berbunyi sehabis hujan.", "Pagi ini sangat cerah.", "Udara pagi terasa sejuk."] },
+                { q: "Pilih yang benda seolah hidup:", a: ["Gunung memuntahkan amarahnya.", "Gunung itu tinggi sekali.", "Banyak pendaki di gunung itu.", "Gunung itu hijau penuh pohon."] },
+                { q: "Manakah kalimat personifikasi?", a: ["Pelangi memeluk langit sehabis hujan.", "Pelangi warnanya sangat indah.", "Ada tujuh warna pada pelangi.", "Pelangi muncul di siang hari."] },
+                { q: "Kalimat personifikasi:", a: ["Sepeda ini menemaniku setiap hari.", "Saya mengendarai sepeda biru.", "Sepeda ini ban-nya bocor.", "Sepeda ini harganya murah."] },
+                { q: "Pilih majas personifikasi:", a: ["Angin menyapu dedaunan yang gugur.", "Daun gugur karena kering.", "Ibu menyapu halaman rumah.", "Angin bertiup cukup kencang."] },
+                { q: "Mana contoh personifikasi?", a: ["Salju menyelimuti bumi dengan putihnya.", "Banyak salju turun hari ini.", "Salju terasa sangat dingin.", "Anak-anak bermain bola salju."] },
+                { q: "Manakah kalimat personifikasi?", a: ["Malam menyembunyikan matahari.", "Malam ini sangat gelap.", "Bintang terlihat jelas di malam hari.", "Adik sudah tidur karena malam."] }
+            ],
+            metafora: [
+                { q: "Manakah majas metafora (perbandingan)?", a: ["Dia adalah bintang lapangan di tim kami.", "Bintang di langit bersinar terang.", "Saya suka melihat bintang jatuh.", "Matahari lebih besar dari bintang."] },
+                { q: "Pilih kalimat metafora:", a: ["Ibuku adalah malaikat bagiku.", "Ibu membelikanku baju baru.", "Ibu sedang memasak di dapur.", "Saya sangat menyayangi ibu."] },
+                { q: "Apa makna metafora 'Jendela Dunia'?", a: ["Buku", "Jendela kaca", "Kaca pembesar", "Televisi"] },
+                { q: "Siapa yang disebut 'Tulang punggung keluarga'?", a: ["Pencari nafkah", "Anak bungsu", "Orang sakit punggung", "Tamu keluarga"] },
+                { q: "Apa makna 'Kambing hitam'?", a: ["Orang yang disalahkan", "Kambing berwarna hitam", "Hewan ternak", "Menu makanan"] },
+                { q: "Siapa 'Buah hati' dalam keluarga?", a: ["Anak kesayangan", "Buah-buahan segar", "Orang tua", "Penyakit hati"] },
+                { q: "Pemuda adalah ujung tombak bangsa. Artinya?", a: ["Penerus yang penting", "Senjata tajam", "Prajurit perang", "Benda pusaka"] },
+                { q: "Apa itu 'Kutu buku'?", a: ["Orang yang suka membaca", "Serangga di kertas", "Buku yang rusak", "Perpustakaan"] },
+                { q: "Pilih majas metafora:", a: ["Internet adalah lautan ilmu.", "Air laut rasanya asin.", "Banyak ikan di lautan.", "Nelayan berlayar di laut."] },
+                { q: "Apa maksud 'Waktu adalah uang'?", a: ["Waktu sangat berharga", "Jam tangan mahal", "Uang bisa membeli waktu", "Kerja lembur dapat uang"] },
+                { q: "Pilih kalimat majas metafora:", a: ["Mulutmu adalah harimaumu.", "Harimau hewan yang buas.", "Mulut digunakan untuk makan.", "Harimau mengaum keras."] },
+                { q: "Apa makna 'Bunga desa'?", a: ["Gadis tercantik di desa", "Bunga yang tumbuh di desa", "Tanaman hias", "Kepala desa"] },
+                { q: "Pilih contoh majas metafora:", a: ["Hatinya adalah batu yang keras.", "Batu itu sangat keras.", "Adik melempar batu.", "Batu di sungai itu besar."] },
+                { q: "Kalimat dengan majas metafora:", a: ["Perpustakaan adalah gudang ilmu.", "Gudang itu tempat barang bekas.", "Perpustakaan itu luas.", "Banyak buku di perpustakaan."] },
+                { q: "Apa sebutan metafora untuk Koruptor?", a: ["Tikus berdasi", "Kucing garong", "Anjing penjaga", "Burung pemangsa"] },
+                { q: "Pilih kalimat metafora:", a: ["Kata-katanya adalah pedang tajam.", "Pedang itu sangat tajam.", "Prajurit membawa pedang.", "Besi dibuat menjadi pedang."] },
+                { q: "Manakah yang merupakan metafora?", a: ["Senyumnya adalah matahari pagi.", "Matahari terbit pagi hari.", "Pagi ini sangat cerah.", "Senyumnya sangat manis."] },
+                { q: "Pilih kalimat majas metafora:", a: ["Kelas kami adalah pasar yang bising.", "Pasar itu sangat ramai.", "Ibu berbelanja di pasar.", "Kelas kami kotor."] },
+                { q: "Apa arti 'Anak emas'?", a: ["Anak yang paling disayang", "Anak yang punya emas", "Anak orang kaya", "Perhiasan emas"] },
+                { q: "Pilih majas metafora:", a: ["Ilmu adalah pelita hidup.", "Lampu pelita menerangi malam.", "Budi menyalakan pelita.", "Pelita itu kehabisan minyak."] }
+            ],
+            hiperbola: [
+                { q: "Manakah majas hiperbola (berlebihan)?", a: ["Air matanya mengalir menganak sungai.", "Air sungai itu sangat deras.", "Ia menangis sedih sekali.", "Hujan membuat sungai banjir."] },
+                { q: "Pilih kalimat hiperbola:", a: ["Suaranya menggelegar membelah bumi.", "Petir menyambar dengan keras.", "Suara klakson itu berisik.", "Dia berteriak kencang."] },
+                { q: "Kalimat mana yang melebih-lebihkan?", a: ["Aku menunggu seribu tahun lamanya.", "Aku menunggu selama satu jam.", "Menunggu adalah hal yang bosan.", "Kereta api datang terlambat."] },
+                { q: "Manakah kalimat hiperbola?", a: ["Keringatnya membanjiri seluruh lapangan.", "Dia berkeringat karena lari.", "Lantai lapangan itu basah.", "Banjir melanda kota kami."] },
+                { q: "Pilih kalimat hiperbola:", a: ["Larinya secepat kilat menyambar.", "Dia berlari sangat cepat.", "Kilat terlihat saat hujan.", "Pelari itu juara satu."] },
+                { q: "Contoh majas hiperbola adalah:", a: ["Harga beras melambung setinggi langit.", "Harga beras naik bulan ini.", "Bintang ada di langit.", "Pesawat terbang di langit."] },
+                { q: "Manakah kalimat hiperbola?", a: ["Hatiku hancur berkeping-keping.", "Gelas itu pecah berkeping-keping.", "Dia sedang bersedih.", "Piring jatuh ke lantai."] },
+                { q: "Pilih kalimat yang berlebihan:", a: ["Tugas ini membuat kepalaku mau pecah.", "Tugas ini sangat sulit.", "Kepalaku terasa pusing.", "Banyak sekali tugas hari ini."] },
+                { q: "Kalimat hiperbola di bawah ini:", a: ["Badannya kurus tinggal tulang dan kulit.", "Dia anak yang sangat kurus.", "Hewan itu kelaparan.", "Tulang adalah bagian tubuh."] },
+                { q: "Manakah contoh hiperbola?", a: ["Teriakannya memecahkan gendang telingaku.", "Suara radio itu terlalu keras.", "Dia menjerit ketakutan.", "Telingaku sakit."] },
+                { q: "Pilih kalimat hiperbola:", a: ["Gedung pencakar langit itu menyundul awan.", "Gedung itu sangat tinggi.", "Awan mendung terlihat hitam.", "Burung terbang dekat gedung."] },
+                { q: "Mana kalimat yang melebih-lebihkan?", a: ["Darahnya mendidih karena sangat marah.", "Air mendidih di atas kompor.", "Dia sangat marah padaku.", "Suhu udara hari ini panas."] },
+                { q: "Pilih kalimat hiperbola:", a: ["Cita-citanya setinggi bintang di angkasa.", "Dia ingin menjadi dokter.", "Pesawat terbang ke angkasa.", "Langit malam penuh bintang."] },
+                { q: "Kalimat hiperbola:", a: ["Kasih ibu tak terhingga sepanjang masa.", "Ibu sangat menyayangi anaknya.", "Kasih sayang ibu sangat besar.", "Ibu memeluk anaknya erat."] },
+                { q: "Manakah kalimat hiperbola?", a: ["Tumpukan sampah di sini menggunung.", "Sampah di sini sangat banyak.", "Gunung itu tinggi menjulang.", "Tolong buang sampah di tempatnya."] },
+                { q: "Pilih majas hiperbola:", a: ["Langkah pasukannya menggetarkan dunia.", "Pasukan itu berbaris rapi.", "Gempa bumi membuat tanah bergetar.", "Dia melangkah pelan-pelan."] },
+                { q: "Kalimat berlebihan (Hiperbola):", a: ["Senyum manisnya melelehkan gunung es.", "Es krim itu meleleh karena panas.", "Gunung es ada di kutub utara.", "Senyumannya sangat manis."] },
+                { q: "Pilih kalimat hiperbola:", a: ["Kesepian ini membunuhku secara perlahan.", "Saya merasa sangat kesepian.", "Di rumah tidak ada siapa-siapa.", "Pemburu membunuh hewan liar."] },
+                { q: "Manakah contoh hiperbola?", a: ["Aku lapar sekali sampai bisa menelan gajah.", "Gajah adalah hewan yang besar.", "Aku belum makan dari pagi.", "Makananku sudah habis."] },
+                { q: "Pilih kalimat hiperbola:", a: ["Panasnya hari ini bisa memanggang batu.", "Batu itu sangat keras.", "Hari ini cuaca sangat terik.", "Matahari bersinar terang."] }
+            ]
+        };
+
+        // --- HELPER FUNCTIONS ---
+        const shuffleArray = (array) => {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        };
+
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            const [screen, setScreen] = useState('splash'); // splash, title, login, menu, gameplay, winner
+            const [topic, setTopic] = useState(null);
+            const [toastMsg, setToastMsg] = useState(null);
+            
+            // State untuk data pemain
+            const [player1Name, setPlayer1Name] = useState('');
+            const [player2Name, setPlayer2Name] = useState('');
+            
+            // Audio Refs
+            const bgmRef = useRef(null);
+            const fanfareRef = useRef(null);
+
+            // Fetch Data State
+            const [questions, setQuestions] = useState(localQuestionBank);
+
+            // Fullscreen Handler
+            const toggleFullscreen = () => {
+                if (!document.fullscreenElement) {
+                    const docEl = document.documentElement;
+                    const requestFS = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullscreen || docEl.msRequestFullscreen;
+                    
+                    if (requestFS) {
+                        requestFS.call(docEl).catch(err => {
+                            setToastMsg("Akses layar penuh diblokir oleh browser saat ini.");
+                            setTimeout(() => setToastMsg(null), 3000);
+                        });
+                    } else {
+                        setToastMsg("Browser tidak mendukung fitur layar penuh.");
+                        setTimeout(() => setToastMsg(null), 3000);
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            };
+
+            // Play BGM and transition
+            const enterGame = (nama1, nama2) => {
+                setPlayer1Name(nama1);
+                setPlayer2Name(nama2);
+                if (bgmRef.current) {
+                    bgmRef.current.loop = true;
+                    bgmRef.current.volume = 0.5;
+                    bgmRef.current.play().catch(e => console.log("Audio play prevented:", e));
+                }
+                setScreen('menu');
+            };
+
+            const goToLogin = () => {
+                setScreen('login');
+            };
+
+            // Load Google Sheets Data if available
+            useEffect(() => {
+                if (GOOGLE_SHEET_URL && GOOGLE_SHEET_URL.trim() !== "") {
+                    Papa.parse(GOOGLE_SHEET_URL, {
+                        download: true,
+                        header: true,
+                        complete: function(results) {
+                            const newBank = { personifikasi: [], metafora: [], hiperbola: [] };
+                            results.data.forEach(row => {
+                                const kategori = row.kategori?.toLowerCase();
+                                if (newBank[kategori] && row.pertanyaan && row.jawaban_benar) {
+                                    newBank[kategori].push({
+                                        q: row.pertanyaan,
+                                        a: [row.jawaban_benar, row.salah1, row.salah2, row.salah3].filter(Boolean)
+                                    });
+                                }
+                            });
+                            // Validasi minimal ada data
+                            if(newBank.personifikasi.length > 0) {
+                                setQuestions(newBank);
+                                console.log("Loaded questions from Google Sheets");
+                            }
+                        }
+                    });
+                }
+            }, []);
+
+            return (
+                <div className="w-screen h-screen overflow-hidden flex flex-col items-center justify-center relative">
+                    
+                    {/* Audio Elements */}
+                    <audio ref={bgmRef} src={ASSETS.bgm} preload="auto"></audio>
+                    <audio ref={fanfareRef} src={ASSETS.fanfare} preload="auto"></audio>
+
+                    {/* Toast Message */}
+                    {toastMsg && (
+                        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-[100] bg-red-500 text-white px-6 py-3 rounded-full font-nunito font-bold shadow-lg text-center animate-bounce border-2 border-white">
+                            {toastMsg}
+                        </div>
+                    )}
+
+                    {/* Floating Fullscreen Button */}
+                    <button 
+                        onClick={toggleFullscreen}
+                        className="absolute top-4 right-4 z-50 bg-white/80 p-3 rounded-full shadow-lg border-2 border-black hover:bg-white active:scale-95 transition"
+                    >
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+
+                    {/* ROUTER */}
+                    {screen === 'splash' && <SplashScreen setScreen={setScreen} />}
+                    {screen === 'title' && <TitleScreen goToLogin={goToLogin} />}
+                    {screen === 'login' && <LoginScreen enterGame={enterGame} setScreen={setScreen} />}
+                    {screen === 'menu' && <MenuScreen setTopic={setTopic} setScreen={setScreen} player1Name={player1Name} player2Name={player2Name} />}
+                    {screen === 'materi' && <MateriScreen setScreen={setScreen} />}
+                    {screen === 'leaderboard' && <LeaderboardScreen setScreen={setScreen} />}
+                    {screen === 'refleksi' && <RefleksiScreen setScreen={setScreen} player1Name={player1Name} player2Name={player2Name} />}
+                    {screen === 'gameplay' && 
+                        <GameplayScreen 
+                            topic={topic} 
+                            questions={questions[topic]} 
+                            setScreen={setScreen} 
+                            bgmRef={bgmRef} 
+                            fanfareRef={fanfareRef} 
+                            player1Name={player1Name}
+                            player2Name={player2Name}
+                        />
+                    }
+                    {screen === 'winner' && <WinnerScreen setScreen={setScreen} bgmRef={bgmRef} />}
+                </div>
+            );
+        };
+
+        // --- SPLASH SCREEN ---
+        const SplashScreen = ({ setScreen }) => {
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    setScreen('title');
+                }, 6000);
+                return () => clearTimeout(timer);
+            }, [setScreen]);
+
+            return (
+                <div className="w-full h-full arena-bg flex flex-col items-center justify-center relative">
+                    {/* Overlay tipis agar background tidak terlalu mencolok */}
+                    <div className="absolute inset-0 bg-white/40"></div>
+                    
+                    {/* Kotak gelembung teks */}
+                    <div className="relative z-10 flex flex-col items-center animate-zoom-in bg-white/90 p-8 md:p-12 rounded-3xl border-4 border-black shadow-[0_8px_0_black]">
+                        <h1 className="text-5xl md:text-7xl text-blue-600 mb-4 font-black text-stroke-sm">Bu Bilqis</h1>
+                        <p className="text-xl md:text-3xl text-gray-700 font-nunito font-black">Mempersembahkan</p>
+                        
+                        <div className="mt-8 flex gap-3">
+                            <div className="w-5 h-5 bg-red-500 rounded-full animate-bounce border-2 border-black"></div>
+                            <div className="w-5 h-5 bg-yellow-500 rounded-full animate-bounce border-2 border-black" style={{animationDelay: '0.1s'}}></div>
+                            <div className="w-5 h-5 bg-green-500 rounded-full animate-bounce border-2 border-black" style={{animationDelay: '0.2s'}}></div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- TITLE SCREEN ---
+        const TitleScreen = ({ goToLogin }) => {
+            return (
+                <div className="w-full h-full arena-bg flex flex-col relative items-center justify-center">
+                    {/* Overlay */}
+                    <div className="absolute inset-0 bg-white/40"></div>
+                    
+                    <div className="relative z-10 flex flex-col items-center">
+                        <h1 className="text-6xl md:text-8xl text-yellow-400 text-stroke mb-2 animate-float text-center px-4">
+                            TARIK TAMBANG
+                        </h1>
+                        <h2 className="text-5xl md:text-7xl text-green-500 text-stroke mb-16 text-center">
+                            DINO
+                        </h2>
+
+                        <div className="flex gap-8 mb-16">
+                            <img src={ASSETS.dinoGreen} alt="Dino Hijau" className="w-32 md:w-48 transform -scale-x-100" />
+                            <img src={ASSETS.dinoRed} alt="Dino Merah" className="w-32 md:w-48" />
+                        </div>
+
+                        <button 
+                            onClick={goToLogin}
+                            className="btn-blue text-white text-4xl py-6 px-16 rounded-full border-4 border-black text-stroke uppercase tracking-widest animate-pulse"
+                        >
+                            MASUK
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- LOGIN SCREEN ---
+        const LoginScreen = ({ enterGame, setScreen }) => {
+            const [nama1, setNama1] = useState('');
+            const [nama2, setNama2] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (nama1.trim() && nama2.trim()) {
+                    enterGame(nama1, nama2);
+                }
+            };
+
+            return (
+                <div className="w-full h-full arena-bg flex flex-col relative items-center justify-center p-4">
+                    {/* Overlay transparan */}
+                    <div className="absolute inset-0 bg-white/70"></div>
+                    
+                    <div className="relative z-10 bg-white border-4 border-black rounded-3xl p-6 md:p-8 shadow-[0_12px_0_black] max-w-lg w-full animate-zoom-in max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-3xl md:text-5xl text-blue-600 text-stroke-sm mb-6 text-center">ISI DATA DIRI</h2>
+                        
+                        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                            <div>
+                                <label className="block text-lg md:text-xl font-nunito font-extrabold text-green-600 mb-1">Pemain 1 (Tim Hijau)</label>
+                                <input 
+                                    type="text" 
+                                    value={nama1}
+                                    onChange={(e) => setNama1(e.target.value)}
+                                    placeholder="Nama Pemain 1..."
+                                    className="w-full text-lg md:text-xl font-nunito font-bold p-3 border-4 border-black rounded-2xl focus:outline-none focus:ring-4 focus:ring-green-400 bg-green-50"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-lg md:text-xl font-nunito font-extrabold text-red-600 mb-1">Pemain 2 (Tim Merah)</label>
+                                <input 
+                                    type="text" 
+                                    value={nama2}
+                                    onChange={(e) => setNama2(e.target.value)}
+                                    placeholder="Nama Pemain 2..."
+                                    className="w-full text-lg md:text-xl font-nunito font-bold p-3 border-4 border-black rounded-2xl focus:outline-none focus:ring-4 focus:ring-red-400 bg-red-50"
+                                    required
+                                />
+                            </div>
+
+                            <div className="flex flex-col md:flex-row gap-4 mt-4 w-full">
+                                <button 
+                                    type="button"
+                                    onClick={() => setScreen('title')}
+                                    className="btn-red flex-1 text-white text-xl md:text-3xl py-3 px-4 rounded-full border-4 border-black text-stroke shadow-lg"
+                                >
+                                    KEMBALI
+                                </button>
+                                <button 
+                                    type="submit"
+                                    className="btn-green flex-1 text-white text-xl md:text-3xl py-3 px-4 rounded-full border-4 border-black text-stroke shadow-lg"
+                                >
+                                    LANJUT MAIN
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MENU SCREEN ---
+        const MenuScreen = ({ setTopic, setScreen, player1Name, player2Name }) => {
+            const handleSelect = (topic) => {
+                setTopic(topic);
+                setScreen('gameplay');
+            };
+
+            return (
+                <div className="w-full h-full bg-[#fdf8e1] flex flex-col items-center overflow-y-auto relative pb-28">
+                    
+                    {/* Header Section (Tersusun rapi tanpa menimpa) */}
+                    <div className="w-full flex flex-col md:flex-row justify-between items-center p-4 gap-4 max-w-6xl">
+                        
+                        {/* Tanda Pengenal Pemain (Identitas) */}
+                        {(player1Name || player2Name) ? (
+                            <div className="bg-white border-4 border-black rounded-2xl p-3 md:p-4 shadow-[0_4px_0_black] animate-zoom-in w-full md:w-auto text-center md:text-left min-w-[200px]">
+                                <p className="font-nunito font-extrabold text-sm md:text-lg text-green-600 truncate">🟢 {player1Name || 'Pemain 1'}</p>
+                                <p className="font-nunito font-extrabold text-sm md:text-lg text-red-600 truncate">🔴 {player2Name || 'Pemain 2'}</p>
+                            </div>
+                        ) : (
+                            <div className="hidden md:block min-w-[200px]"></div>
+                        )}
+
+                        {/* Tombol Menu Tambahan */}
+                        <div className="flex flex-wrap justify-center gap-2 md:gap-3 animate-zoom-in">
+                            <button 
+                                onClick={() => setScreen('materi')}
+                                className="btn-blue text-white font-nunito font-extrabold text-xs md:text-base py-2 md:py-3 px-3 md:px-5 rounded-xl border-2 md:border-4 border-black shadow-[0_4px_0_black]"
+                            >
+                                📚 MATERI
+                            </button>
+                            <button 
+                                onClick={() => setScreen('leaderboard')}
+                                className="btn-yellow text-black font-nunito font-extrabold text-xs md:text-base py-2 md:py-3 px-3 md:px-5 rounded-xl border-2 md:border-4 border-black shadow-[0_4px_0_black]"
+                            >
+                                🏆 RANK
+                            </button>
+                            <button 
+                                onClick={() => setScreen('refleksi')}
+                                className="btn-green text-white font-nunito font-extrabold text-xs md:text-base py-2 md:py-3 px-3 md:px-5 rounded-xl border-2 md:border-4 border-black shadow-[0_4px_0_black]"
+                            >
+                                💡 REFLEKSI
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Konten Utama Menu */}
+                    <div className="flex flex-col items-center flex-grow w-full px-4 mt-4 md:mt-10">
+                        <h1 className="text-4xl md:text-6xl text-purple-600 text-stroke mb-8 md:mb-12 text-center animate-float">
+                            PILIH TOPIK SOAL
+                        </h1>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 w-full max-w-5xl mb-8">
+                            {/* Personifikasi */}
+                            <button 
+                                onClick={() => handleSelect('personifikasi')}
+                                className="bg-white border-4 border-black rounded-3xl p-8 flex flex-col items-center justify-center shadow-[0_8px_0_black] hover:-translate-y-2 hover:shadow-[0_16px_0_black] active:translate-y-2 active:shadow-[0_0px_0_black] transition-all"
+                            >
+                                <span className="text-7xl mb-4">🍃</span>
+                                <h2 className="text-3xl text-green-600 text-stroke-sm">Personifikasi</h2>
+                                <p className="mt-2 font-nunito text-gray-600 font-bold text-center">Benda seolah hidup</p>
+                            </button>
+
+                            {/* Metafora */}
+                            <button 
+                                onClick={() => handleSelect('metafora')}
+                                className="bg-white border-4 border-black rounded-3xl p-8 flex flex-col items-center justify-center shadow-[0_8px_0_black] hover:-translate-y-2 hover:shadow-[0_16px_0_black] active:translate-y-2 active:shadow-[0_0px_0_black] transition-all"
+                            >
+                                <span className="text-7xl mb-4">⭐</span>
+                                <h2 className="text-3xl text-blue-600 text-stroke-sm">Metafora</h2>
+                                <p className="mt-2 font-nunito text-gray-600 font-bold text-center">Perbandingan langsung</p>
+                            </button>
+
+                            {/* Hiperbola */}
+                            <button 
+                                onClick={() => handleSelect('hiperbola')}
+                                className="bg-white border-4 border-black rounded-3xl p-8 flex flex-col items-center justify-center shadow-[0_8px_0_black] hover:-translate-y-2 hover:shadow-[0_16px_0_black] active:translate-y-2 active:shadow-[0_0px_0_black] transition-all"
+                            >
+                                <span className="text-7xl mb-4">🌋</span>
+                                <h2 className="text-3xl text-red-600 text-stroke-sm">Hiperbola</h2>
+                                <p className="mt-2 font-nunito text-gray-600 font-bold text-center">Kalimat berlebihan</p>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Tombol Ganti Pemain (Sticky di bawah) */}
+                    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-full px-4 md:w-auto">
+                        <button 
+                            onClick={() => setScreen('login')}
+                            className="btn-red w-full md:w-auto text-white text-xl md:text-2xl py-3 px-8 rounded-full border-4 border-black text-stroke shadow-xl whitespace-nowrap"
+                        >
+                            GANTI PEMAIN
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MATERI SCREEN ---
+        const MateriScreen = ({ setScreen }) => {
+            return (
+                <div className="w-full h-full bg-[#fdf8e1] overflow-y-auto p-4 md:p-8 flex flex-col items-center relative">
+                    <h1 className="text-4xl md:text-6xl text-blue-600 text-stroke mb-8 mt-12 md:mt-4 text-center animate-zoom-in">
+                        📚 MATERI MAJAS
+                    </h1>
+                    
+                    <div className="w-full max-w-4xl flex flex-col gap-6 mb-24 animate-zoom-in" style={{animationDelay: '0.1s'}}>
+                        {/* Materi Personifikasi */}
+                        <div className="bg-green-100 border-4 border-black rounded-3xl p-6 shadow-[0_8px_0_black] relative">
+                            <div className="absolute -top-6 -left-4 text-5xl md:text-6xl animate-bounce">🍃</div>
+                            <h2 className="text-3xl md:text-4xl text-green-700 text-stroke-sm mb-4 ml-8 md:ml-12">Personifikasi</h2>
+                            <p className="font-nunito font-bold text-lg md:text-xl text-gray-800 mb-4 leading-relaxed">
+                                Majas yang mengumpamakan <b>benda mati</b> seolah-olah memiliki sifat seperti manusia (hidup).
+                            </p>
+                            <div className="bg-white p-4 rounded-xl border-2 border-black">
+                                <p className="font-nunito font-extrabold text-gray-700 mb-1">💡 Contoh:</p>
+                                <p className="font-nunito font-bold text-green-600 text-xl italic mb-1">"Angin berbisik lembut di telingaku."</p>
+                                <p className="font-nunito text-sm md:text-base text-gray-600">(Kenyataannya angin tidak punya mulut, jadi tidak bisa berbisik seperti manusia).</p>
+                            </div>
+                        </div>
+
+                        {/* Materi Metafora */}
+                        <div className="bg-blue-100 border-4 border-black rounded-3xl p-6 shadow-[0_8px_0_black] relative mt-4">
+                            <div className="absolute -top-6 -left-4 text-5xl md:text-6xl animate-bounce" style={{animationDelay: '0.2s'}}>⭐</div>
+                            <h2 className="text-3xl md:text-4xl text-blue-700 text-stroke-sm mb-4 ml-8 md:ml-12">Metafora</h2>
+                            <p className="font-nunito font-bold text-lg md:text-xl text-gray-800 mb-4 leading-relaxed">
+                                Majas yang <b>membandingkan dua hal</b> secara langsung tanpa menggunakan kata penghubung (seperti, bagaikan, laksana).
+                            </p>
+                            <div className="bg-white p-4 rounded-xl border-2 border-black">
+                                <p className="font-nunito font-extrabold text-gray-700 mb-1">💡 Contoh:</p>
+                                <p className="font-nunito font-bold text-blue-600 text-xl italic mb-1">"Rudi adalah bintang kelas di sekolah kami."</p>
+                                <p className="font-nunito text-sm md:text-base text-gray-600">(Rudi disamakan dengan bintang, yang artinya murid paling bersinar/pintar).</p>
+                            </div>
+                        </div>
+
+                        {/* Materi Hiperbola */}
+                        <div className="bg-red-100 border-4 border-black rounded-3xl p-6 shadow-[0_8px_0_black] relative mt-4">
+                            <div className="absolute -top-6 -left-4 text-5xl md:text-6xl animate-bounce" style={{animationDelay: '0.4s'}}>🌋</div>
+                            <h2 className="text-3xl md:text-4xl text-red-700 text-stroke-sm mb-4 ml-8 md:ml-12">Hiperbola</h2>
+                            <p className="font-nunito font-bold text-lg md:text-xl text-gray-800 mb-4 leading-relaxed">
+                                Majas yang <b>melebih-lebihkan</b> sesuatu dari kenyataan aslinya hingga terdengar tidak masuk akal.
+                            </p>
+                            <div className="bg-white p-4 rounded-xl border-2 border-black">
+                                <p className="font-nunito font-extrabold text-gray-700 mb-1">💡 Contoh:</p>
+                                <p className="font-nunito font-bold text-red-600 text-xl italic mb-1">"Suaranya menggelegar membelah bumi."</p>
+                                <p className="font-nunito text-sm md:text-base text-gray-600">(Suara manusia sekeras apa pun tentu tidak akan bisa membelah bumi).</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tombol Kembali (Sticky di bawah) */}
+                    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-full px-4 md:w-auto">
+                        <button 
+                            onClick={() => setScreen('menu')}
+                            className="btn-red w-full md:w-auto text-white text-xl md:text-3xl py-4 px-10 rounded-full border-4 border-black text-stroke shadow-xl"
+                        >
+                            KEMBALI KE MENU
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- LEADERBOARD SCREEN ---
+        const LeaderboardScreen = ({ setScreen }) => {
+            const [leaderboard, setLeaderboard] = useState([]);
+
+            useEffect(() => {
+                const data = JSON.parse(localStorage.getItem('dinoLeaderboard') || '[]');
+                setLeaderboard(data.slice(0, 10)); // Tampilkan top 10
+            }, []);
+
+            return (
+                <div className="w-full h-full bg-[#fdf8e1] overflow-y-auto p-4 md:p-8 flex flex-col items-center relative">
+                    <h1 className="text-4xl md:text-6xl text-yellow-500 text-stroke mb-8 mt-12 md:mt-4 text-center animate-zoom-in">
+                        🏆 PAPAN PERINGKAT
+                    </h1>
+                    
+                    <div className="w-full max-w-3xl bg-white border-4 border-black rounded-3xl p-4 md:p-8 shadow-[0_8px_0_black] mb-24 animate-zoom-in">
+                        {leaderboard.length === 0 ? (
+                            <p className="text-center font-nunito font-bold text-xl text-gray-500 py-10">Belum ada pemain yang menang. Ayo main dan jadilah juara!</p>
+                        ) : (
+                            <div className="flex flex-col gap-4">
+                                {leaderboard.map((player, index) => {
+                                    let medal = "";
+                                    if (index === 0) medal = "🥇";
+                                    else if (index === 1) medal = "🥈";
+                                    else if (index === 2) medal = "🥉";
+                                    else medal = `${index + 1}.`;
+
+                                    return (
+                                        <div key={index} className="flex items-center justify-between bg-blue-50 p-4 border-2 border-black rounded-2xl">
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-3xl md:text-4xl w-12 text-center">{medal}</span>
+                                                <div className="flex flex-col">
+                                                    <span className="font-nunito font-extrabold text-lg md:text-2xl text-gray-800">{player.name}</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-yellow-400 border-2 border-black rounded-xl px-4 py-2">
+                                                <span className="font-nunito font-black text-lg md:text-xl text-black">{player.score} Menang</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Tombol Kembali (Sticky di bawah) */}
+                    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-full px-4 md:w-auto">
+                        <button 
+                            onClick={() => setScreen('menu')}
+                            className="btn-red w-full md:w-auto text-white text-xl md:text-3xl py-4 px-10 rounded-full border-4 border-black text-stroke shadow-xl"
+                        >
+                            KEMBALI KE MENU
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- REFLEKSI SCREEN ---
+        const RefleksiScreen = ({ setScreen, player1Name, player2Name }) => {
+            const [peristiwa, setPeristiwa] = useState('');
+            const [perasaan, setPerasaan] = useState('');
+            const [pembelajaran, setPembelajaran] = useState('');
+            const [penerapan, setPenerapan] = useState('');
+            const [showSuccess, setShowSuccess] = useState(false);
+
+            const emojis = ["😀 Senang", "🤔 Bingung", "😎 Bangga", "🤩 Seru!", "🤯 Susah"];
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                
+                // Simpan refleksi ke local storage
+                const dataRefleksi = JSON.parse(localStorage.getItem('dinoRefleksi') || '[]');
+                const combinedNames = (player1Name && player2Name) ? `${player1Name} & ${player2Name}` : 'Siswa Hebat';
+                dataRefleksi.push({
+                    name: combinedNames,
+                    date: new Date().toLocaleDateString(),
+                    peristiwa,
+                    perasaan,
+                    pembelajaran,
+                    penerapan
+                });
+                localStorage.setItem('dinoRefleksi', JSON.stringify(dataRefleksi));
+
+                setShowSuccess(true);
+                setTimeout(() => {
+                    setShowSuccess(false);
+                    setScreen('menu');
+                }, 2500);
+            };
+
+            return (
+                <div className="w-full h-full bg-[#fdf8e1] overflow-y-auto p-4 md:p-8 flex flex-col items-center relative">
+                    {/* Pesan Sukses */}
+                    {showSuccess && (
+                        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center">
+                            <div className="bg-white border-4 border-black rounded-3xl p-8 flex flex-col items-center animate-bounce">
+                                <span className="text-6xl mb-4">🌟</span>
+                                <h2 className="text-3xl text-green-600 font-black text-center">Wah, Luar Biasa!</h2>
+                                <p className="font-nunito text-xl font-bold mt-2 text-center text-gray-700">Terima kasih sudah berbagi pengalamanmu!</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <h1 className="text-4xl md:text-6xl text-green-600 text-stroke mb-4 mt-6 md:mt-2 text-center animate-zoom-in">
+                        💡 JURNAL REFLEKSI 4P
+                    </h1>
+                    <p className="font-nunito font-bold text-gray-600 mb-8 text-center px-4 max-w-2xl">
+                        Ayo ceritakan pengalaman belajarmu hari ini! Jujur itu hebat lho.
+                    </p>
+                    
+                    <form onSubmit={handleSubmit} className="w-full max-w-3xl flex flex-col gap-6 mb-24 animate-zoom-in">
+                        
+                        {/* 1. Peristiwa */}
+                        <div className="bg-white border-4 border-black rounded-2xl p-4 shadow-[0_6px_0_black]">
+                            <label className="flex items-center gap-2 text-2xl font-black text-blue-600 mb-2">
+                                📖 1. Peristiwa <span className="text-sm font-nunito font-bold text-gray-500">(Facts)</span>
+                            </label>
+                            <p className="font-nunito font-bold text-gray-700 mb-2">Apa yang baru saja kamu pelajari dan lakukan di game ini?</p>
+                            <textarea 
+                                required
+                                value={peristiwa}
+                                onChange={(e) => setPeristiwa(e.target.value)}
+                                className="w-full p-3 border-2 border-gray-300 rounded-xl font-nunito font-bold focus:outline-none focus:border-blue-500"
+                                rows="2"
+                                placeholder="Hari ini aku belajar..."
+                            ></textarea>
+                        </div>
+
+                        {/* 2. Perasaan */}
+                        <div className="bg-white border-4 border-black rounded-2xl p-4 shadow-[0_6px_0_black]">
+                            <label className="flex items-center gap-2 text-2xl font-black text-red-500 mb-2">
+                                ❤️ 2. Perasaan <span className="text-sm font-nunito font-bold text-gray-500">(Feelings)</span>
+                            </label>
+                            <p className="font-nunito font-bold text-gray-700 mb-2">Bagaimana perasaanmu saat belajar materi ini?</p>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {emojis.map(emo => (
+                                    <button 
+                                        type="button"
+                                        key={emo}
+                                        onClick={() => setPerasaan(emo)}
+                                        className={`px-3 py-2 rounded-xl font-nunito font-bold border-2 ${perasaan === emo ? 'bg-yellow-300 border-black shadow-inner' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'}`}
+                                    >
+                                        {emo}
+                                    </button>
+                                ))}
+                            </div>
+                            <input 
+                                required
+                                type="text"
+                                value={perasaan}
+                                onChange={(e) => setPerasaan(e.target.value)}
+                                className="w-full p-3 border-2 border-gray-300 rounded-xl font-nunito font-bold focus:outline-none focus:border-red-500"
+                                placeholder="Atau ketik perasaanmu di sini..."
+                            />
+                        </div>
+
+                        {/* 3. Pembelajaran */}
+                        <div className="bg-white border-4 border-black rounded-2xl p-4 shadow-[0_6px_0_black]">
+                            <label className="flex items-center gap-2 text-2xl font-black text-purple-600 mb-2">
+                                🧠 3. Pembelajaran <span className="text-sm font-nunito font-bold text-gray-500">(Findings)</span>
+                            </label>
+                            <p className="font-nunito font-bold text-gray-700 mb-2">Hal baru apa yang paling kamu ingat tentang Majas?</p>
+                            <textarea 
+                                required
+                                value={pembelajaran}
+                                onChange={(e) => setPembelajaran(e.target.value)}
+                                className="w-full p-3 border-2 border-gray-300 rounded-xl font-nunito font-bold focus:outline-none focus:border-purple-500"
+                                rows="2"
+                                placeholder="Ternyata majas itu..."
+                            ></textarea>
+                        </div>
+
+                        {/* 4. Penerapan */}
+                        <div className="bg-white border-4 border-black rounded-2xl p-4 shadow-[0_6px_0_black]">
+                            <label className="flex items-center gap-2 text-2xl font-black text-green-600 mb-2">
+                                🚀 4. Penerapan <span className="text-sm font-nunito font-bold text-gray-500">(Future)</span>
+                            </label>
+                            <p className="font-nunito font-bold text-gray-700 mb-2">Apa yang akan kamu lakukan dengan ilmu baru ini ke depannya?</p>
+                            <textarea 
+                                required
+                                value={penerapan}
+                                onChange={(e) => setPenerapan(e.target.value)}
+                                className="w-full p-3 border-2 border-gray-300 rounded-xl font-nunito font-bold focus:outline-none focus:border-green-500"
+                                rows="2"
+                                placeholder="Nanti saat aku menulis cerita, aku akan..."
+                            ></textarea>
+                        </div>
+
+                        <button 
+                            type="submit"
+                            className="btn-green w-full text-white text-2xl md:text-3xl py-4 rounded-full border-4 border-black text-stroke shadow-lg mb-8"
+                        >
+                            KIRIM REFLEKSI 💌
+                        </button>
+                    </form>
+
+                    {/* Tombol Kembali */}
+                    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-full px-4 md:w-auto">
+                        <button 
+                            type="button"
+                            onClick={() => setScreen('menu')}
+                            className="btn-red w-full md:w-auto text-white text-xl md:text-3xl py-4 px-10 rounded-full border-4 border-black text-stroke shadow-xl"
+                        >
+                            KEMBALI KE MENU
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- GAMEPLAY SCREEN ---
+        const GameplayScreen = ({ topic, questions, setScreen, bgmRef, fanfareRef, player1Name, player2Name }) => {
+            const [ropePosition, setRopePosition] = useState(50); // 50 is center. 0 = A win, 100 = B win.
+            
+            // Question state for each team
+            const [qA, setQA] = useState(null);
+            const [qB, setQB] = useState(null);
+
+            // Lock states (seconds remaining)
+            const [lockA, setLockA] = useState(0);
+            const [lockB, setLockB] = useState(0);
+
+            // Shuffled options for current question
+            const [optsA, setOptsA] = useState([]);
+            const [optsB, setOptsB] = useState([]);
+
+            // Helper to load random question for a team
+            const loadQuestionA = useCallback(() => {
+                const randomQ = questions[Math.floor(Math.random() * questions.length)];
+                setQA(randomQ);
+                setOptsA(shuffleArray(randomQ.a));
+            }, [questions]);
+
+            const loadQuestionB = useCallback(() => {
+                const randomQ = questions[Math.floor(Math.random() * questions.length)];
+                setQB(randomQ);
+                setOptsB(shuffleArray(randomQ.a));
+            }, [questions]);
+
+            // Init questions & pause BGM
+            useEffect(() => {
+                if (bgmRef.current) {
+                    bgmRef.current.pause(); // Pause BGM saat gameplay sesuai instruksi
+                }
+                loadQuestionA();
+                loadQuestionB();
+            }, [loadQuestionA, loadQuestionB, bgmRef]);
+
+            // Timer logic for locks
+            useEffect(() => {
+                let interval;
+                if (lockA > 0 || lockB > 0) {
+                    interval = setInterval(() => {
+                        if (lockA > 0) setLockA(l => l - 1);
+                        if (lockB > 0) setLockB(l => l - 1);
+                    }, 1000);
+                }
+                return () => clearInterval(interval);
+            }, [lockA, lockB]);
+
+            // Win condition check
+            useEffect(() => {
+                if (ropePosition <= 15) {
+                    // Update LocalStorage Pemenang (Tim Hijau)
+                    const winnerName = player1Name ? player1Name.toUpperCase() : 'TIM HIJAU';
+                    localStorage.setItem('dinoWinner', winnerName);
+                    localStorage.setItem('dinoWinnerTeam', 'green');
+
+                    // Update Leaderboard jika ada nama pemain
+                    if (player1Name) {
+                        let lb = JSON.parse(localStorage.getItem('dinoLeaderboard') || '[]');
+                        let playerIndex = lb.findIndex(p => p.name === player1Name);
+                        if (playerIndex >= 0) {
+                            lb[playerIndex].score += 1;
+                        } else {
+                            lb.push({ name: player1Name, score: 1 });
+                        }
+                        lb.sort((a, b) => b.score - a.score);
+                        localStorage.setItem('dinoLeaderboard', JSON.stringify(lb));
+                    }
+
+                    if (fanfareRef.current) fanfareRef.current.play();
+                    setScreen('winner');
+                } else if (ropePosition >= 85) {
+                    // Update LocalStorage Pemenang (Tim Merah)
+                    const winnerName = player2Name ? player2Name.toUpperCase() : 'TIM MERAH';
+                    localStorage.setItem('dinoWinner', winnerName);
+                    localStorage.setItem('dinoWinnerTeam', 'red');
+
+                    // Update Leaderboard jika ada nama pemain
+                    if (player2Name) {
+                        let lb = JSON.parse(localStorage.getItem('dinoLeaderboard') || '[]');
+                        let playerIndex = lb.findIndex(p => p.name === player2Name);
+                        if (playerIndex >= 0) {
+                            lb[playerIndex].score += 1;
+                        } else {
+                            lb.push({ name: player2Name, score: 1 });
+                        }
+                        lb.sort((a, b) => b.score - a.score);
+                        localStorage.setItem('dinoLeaderboard', JSON.stringify(lb));
+                    }
+
+                    if (fanfareRef.current) fanfareRef.current.play();
+                    setScreen('winner');
+                }
+            }, [ropePosition, setScreen, fanfareRef, player1Name, player2Name]);
+
+            const handleAnswerA = (answer) => {
+                if (lockA > 0) return;
+                
+                if (answer === qA.a[0]) {
+                    // Correct! Pull rope left (-5)
+                    setRopePosition(prev => Math.max(0, prev - 5));
+                    loadQuestionA();
+                } else {
+                    // Incorrect! Lock for 5 seconds
+                    setLockA(5);
+                }
+            };
+
+            const handleAnswerB = (answer) => {
+                if (lockB > 0) return;
+                
+                if (answer === qB.a[0]) {
+                    // Correct! Pull rope right (+5)
+                    setRopePosition(prev => Math.min(100, prev + 5));
+                    loadQuestionB();
+                } else {
+                    // Incorrect! Lock for 5 seconds
+                    setLockB(5);
+                }
+            };
+
+            // Formatting Topic Title
+            const topicTitle = topic ? topic.charAt(0).toUpperCase() + topic.slice(1) : "";
+
+            return (
+                <div className="w-full h-full flex flex-col bg-white relative">
+                    
+                    {/* Tombol Menu Utama di Gameplay */}
+                    <button 
+                        onClick={() => {
+                            if (bgmRef.current) {
+                                bgmRef.current.play().catch(e => console.log(e));
+                            }
+                            setScreen('menu');
+                        }}
+                        className="absolute top-2 left-1/2 transform -translate-x-1/2 z-50 bg-yellow-400 text-black font-nunito font-black text-xs md:text-sm px-4 py-1 rounded-full border-2 border-black shadow-md hover:scale-105 active:scale-95 transition-all"
+                    >
+                        🏠 MENU UTAMA
+                    </button>
+
+                    {/* TOP (15%) - Question Boxes */}
+                    <div className="h-[15%] w-full flex border-b-4 border-black">
+                        {/* Team A Question */}
+                        <div className="w-1/2 h-full bg-green-100 p-2 md:p-4 border-r-4 border-black flex flex-col justify-center items-center">
+                            <span className="bg-green-500 text-white px-3 py-1 rounded-full border-2 border-black text-xs md:text-sm mb-1 absolute top-2 left-2 z-10 truncate max-w-[90%]">
+                                {player1Name ? player1Name.toUpperCase() : 'TIM HIJAU'} - {topicTitle}
+                            </span>
+                            <p className="text-center text-sm md:text-xl font-nunito font-extrabold text-black mt-2">
+                                {qA ? qA.q : "Memuat..."}
+                            </p>
+                        </div>
+                        {/* Team B Question */}
+                        <div className="w-1/2 h-full bg-red-100 p-2 md:p-4 flex flex-col justify-center items-center relative">
+                            <span className="bg-red-500 text-white px-3 py-1 rounded-full border-2 border-black text-xs md:text-sm mb-1 absolute top-2 right-2 z-10 truncate max-w-[90%]">
+                                {player2Name ? player2Name.toUpperCase() : 'TIM MERAH'} - {topicTitle}
+                            </span>
+                            <p className="text-center text-sm md:text-xl font-nunito font-extrabold text-black mt-2">
+                                {qB ? qB.q : "Memuat..."}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* MIDDLE (60%) - Arena & Animation */}
+                    <div className="h-[60%] w-full arena-bg relative overflow-hidden flex flex-col justify-end">
+                        <div className="absolute inset-0 bg-white/10 pointer-events-none"></div>
+
+                        {/* Rope Container (placed lower in the middle section) */}
+                        <div className="relative w-full h-32 mb-10">
+                            
+                            {/* The Rope Line */}
+                            <div className="absolute top-1/2 left-0 w-full h-4 rope-texture transform -translate-y-1/2 z-10"></div>
+                            
+                            {/* Center Marker on the rope */}
+                            <div className="absolute top-1/2 left-1/2 w-2 h-8 bg-black transform -translate-x-1/2 -translate-y-1/2 z-10"></div>
+
+                            {/* The Knot (Moves based on ropePosition) */}
+                            <div 
+                                className="absolute top-1/2 w-10 h-10 bg-yellow-400 rounded-full border-4 border-black z-20 transition-all duration-300 transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center shadow-lg"
+                                style={{ left: `${ropePosition}%` }}
+                            >
+                                <div className="w-4 h-4 bg-yellow-600 rounded-full"></div>
+                            </div>
+
+                            {/* Dino A (Green) - Attaches to knot from left */}
+                            <img 
+                                src={ASSETS.dinoGreen} 
+                                alt="Dino Green"
+                                className="absolute top-1/2 w-32 md:w-48 z-30 transition-all duration-300 transform -translate-y-[60%] -scale-x-100"
+                                style={{ left: `calc(${ropePosition}% - ${window.innerWidth < 768 ? '100px' : '150px'})` }}
+                            />
+
+                            {/* Dino B (Red) - Attaches to knot from right */}
+                            <img 
+                                src={ASSETS.dinoRed} 
+                                alt="Dino Red"
+                                className="absolute top-1/2 w-32 md:w-48 z-30 transition-all duration-300 transform -translate-y-[60%]"
+                                style={{ left: `calc(${ropePosition}% + ${window.innerWidth < 768 ? '10px' : '30px'})` }}
+                            />
+                        </div>
+
+                        {/* Warning / Lock Overlay Messages */}
+                        {lockA > 0 && (
+                            <div className="absolute top-1/4 left-1/4 transform -translate-x-1/2 text-4xl text-red-600 text-stroke animate-shake z-40">
+                                SALAH!
+                            </div>
+                        )}
+                        {lockB > 0 && (
+                            <div className="absolute top-1/4 right-1/4 transform translate-x-1/2 text-4xl text-red-600 text-stroke animate-shake z-40">
+                                SALAH!
+                            </div>
+                        )}
+
+                    </div>
+
+                    {/* BOTTOM (25%) - Answer Buttons */}
+                    <div className="h-[25%] w-full flex border-t-4 border-black bg-gray-800">
+                        
+                        {/* Team A Buttons */}
+                        <div className="w-1/2 h-full bg-green-200 border-r-4 border-black p-2 grid grid-cols-2 grid-rows-2 gap-2 relative">
+                            {lockA > 0 && (
+                                <div className="absolute inset-0 bg-red-500/80 z-50 flex items-center justify-center">
+                                    <span className="text-white text-3xl md:text-5xl text-stroke">TERKUNCI ({lockA}s)</span>
+                                </div>
+                            )}
+                            {optsA.map((opt, i) => (
+                                <button 
+                                    key={`A-${i}`}
+                                    onClick={() => handleAnswerA(opt)}
+                                    className="btn-green rounded-xl border-2 border-black text-white font-nunito font-bold text-xs md:text-base px-1 flex items-center justify-center text-center break-words shadow-md"
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Team B Buttons */}
+                        <div className="w-1/2 h-full bg-red-200 p-2 grid grid-cols-2 grid-rows-2 gap-2 relative">
+                            {lockB > 0 && (
+                                <div className="absolute inset-0 bg-red-500/80 z-50 flex items-center justify-center">
+                                    <span className="text-white text-3xl md:text-5xl text-stroke">TERKUNCI ({lockB}s)</span>
+                                </div>
+                            )}
+                            {optsB.map((opt, i) => (
+                                <button 
+                                    key={`B-${i}`}
+                                    onClick={() => handleAnswerB(opt)}
+                                    className="btn-red rounded-xl border-2 border-black text-white font-nunito font-bold text-xs md:text-base px-1 flex items-center justify-center text-center break-words shadow-md"
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+
+                    </div>
+                </div>
+            );
+        };
+
+        // --- WINNER SCREEN ---
+        const WinnerScreen = ({ setScreen, bgmRef }) => {
+            const winner = localStorage.getItem('dinoWinner');
+            const winnerTeam = localStorage.getItem('dinoWinnerTeam') || 'green';
+            const isGreen = winnerTeam === 'green';
+            const dinoImg = isGreen ? ASSETS.dinoGreen : ASSETS.dinoRed;
+            const bgColor = isGreen ? 'bg-green-100' : 'bg-red-100';
+            const textColor = isGreen ? 'text-green-500' : 'text-red-500';
+
+            const handleLanjutMain = () => {
+                setScreen('gameplay');
+            };
+
+            const handleMenuUtama = () => {
+                if (bgmRef.current) {
+                    bgmRef.current.currentTime = 0;
+                    bgmRef.current.play().catch(e => console.log("BGM play error", e));
+                }
+                setScreen('menu');
+            };
+
+            return (
+                <div className={`w-full h-full flex flex-col items-center justify-center ${bgColor} relative overflow-hidden`}>
+                    
+                    {/* Confetti / Star Background effect simple */}
+                    <div className="absolute inset-0 flex justify-around opacity-50 text-6xl pointer-events-none">
+                        <span className="animate-float" style={{animationDelay: '0s'}}>⭐</span>
+                        <span className="animate-float" style={{animationDelay: '1s'}}>🏆</span>
+                        <span className="animate-float" style={{animationDelay: '2s'}}>⭐</span>
+                        <span className="animate-float" style={{animationDelay: '0.5s'}}>🎉</span>
+                    </div>
+
+                    <div className="z-10 flex flex-col items-center animate-zoom-in">
+                        <h1 className="text-5xl md:text-7xl text-yellow-400 text-stroke mb-4 text-center">
+                            PEMENANGNYA ADALAH
+                        </h1>
+                        <h2 className={`text-6xl md:text-8xl ${textColor} text-stroke mb-8 text-center animate-pulse`}>
+                            {winner}!
+                        </h2>
+
+                        <img 
+                            src={dinoImg} 
+                            alt="Winner Dino" 
+                            className={`w-48 md:w-64 mb-12 animate-bounce ${isGreen ? 'transform -scale-x-100' : ''}`} 
+                        />
+
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <button 
+                                onClick={handleLanjutMain}
+                                className="btn-green text-white text-2xl md:text-3xl py-4 px-8 rounded-full border-4 border-black text-stroke shadow-xl"
+                            >
+                                LANJUT MAIN
+                            </button>
+                            <button 
+                                onClick={handleMenuUtama}
+                                className="btn-blue text-white text-2xl md:text-3xl py-4 px-8 rounded-full border-4 border-black text-stroke shadow-xl"
+                            >
+                                MENU UTAMA
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Render App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
